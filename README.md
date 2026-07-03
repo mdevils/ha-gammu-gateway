@@ -153,6 +153,15 @@ If you find **Tado Assist** useful, consider buying me a coffee to support futur
 ## 📜 License
 This project is licensed under the [MIT License](LICENSE).
   
+### v1.2.0
+- Add optional `limit` to the `gammu-messages-card` to cap displayed messages.
+
+### v1.1.0
+- Fix `/getsms` 401: validate credentials against the authenticated endpoint at setup and add a re-authentication flow.
+- Add persisted SMS message history and the `SMS Messages` sensor.
+- Add auto-registered Lovelace cards (`gammu-send-card`, `gammu-messages-card`).
+- Add `clear_messages` and `delete_message` services.
+
 ### v1.0.0 - Initial Release
 - First public version.
 

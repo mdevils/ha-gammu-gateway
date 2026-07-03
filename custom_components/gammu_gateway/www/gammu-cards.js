@@ -252,10 +252,13 @@ class GammuMessagesCard extends HTMLElement {
 
   _update() {
     const stateObj = this._stateObj();
-    const messages =
+    const all =
       stateObj && Array.isArray(stateObj.attributes.messages)
         ? stateObj.attributes.messages
         : [];
+
+    const limit = parseInt(this._config.limit, 10);
+    const messages = Number.isFinite(limit) && limit > 0 ? all.slice(0, limit) : all;
 
     const signature = messages.map((m) => m.id).join(",");
     if (signature === this._lastSignature) return;

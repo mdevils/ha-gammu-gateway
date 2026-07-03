@@ -49,7 +49,8 @@ default_number: "+1555…" # optional
 ```yaml
 type: custom:gammu-messages-card
 entity: sensor.sms_messages   # adjust to your actual entity id
-title: SMS Messages                          # optional
+title: SMS Messages           # optional
+limit: 10                     # optional: show only the newest N messages
 ```
 
 Both cards are also available from the dashboard **"Add card"** picker

@@ -1,29 +1,29 @@
-"""Piattaforma Button per Gammu Gateway."""
+"""Button platform for the SMS Gammu Gateway integration."""
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import CONF_HOST
 
-from .const import DOMAIN
+from .const import DATA_ENTRIES, DOMAIN
+from .coordinator import GammuGatewayCoordinator
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Configura il pulsante di reset."""
-    client = hass.data[DOMAIN][entry.entry_id]["client"]
+    """Set up the modem reset button."""
+    coordinator: GammuGatewayCoordinator = hass.data[DOMAIN][DATA_ENTRIES][
+        entry.entry_id
+    ]
     host = entry.data[CONF_HOST]
-    async_add_entities([GammuResetButton(client, entry.entry_id, host)], True)
+    async_add_entities([GammuResetButton(coordinator, entry.entry_id, host)])
+
 
 class GammuResetButton(ButtonEntity):
-    """Rappresentazione del pulsante di reset del modem."""
+    """Button that resets the modem."""
 
-    def __init__(self, client, entry_id, host):
-        self._client = client
+    def __init__(self, coordinator: GammuGatewayCoordinator, entry_id, host):
+        self._coordinator = coordinator
         self._entry_id = entry_id
         self._host = host
-        
-        # --- MODIFICA QUI ---
-        # Non usiamo più _attr_name fisso.
-        # Usiamo una chiave per la traduzione:
         self._attr_translation_key = "reset_modem"
         self._attr_has_entity_name = True
-        
         self._attr_unique_id = f"{entry_id}_reset_button"
         self._attr_icon = "mdi:restart"
 
@@ -38,4 +38,4 @@ class GammuResetButton(ButtonEntity):
         }
 
     async def async_press(self):
-        await self._client.reset_modem()
+        await self._coordinator.client.reset_modem()

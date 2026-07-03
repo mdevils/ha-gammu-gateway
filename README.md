@@ -24,10 +24,44 @@ Ensure that:
 - **Signal Monitoring**: Real-time sensor for signal strength (dBm).
 - **Network Info**: Sensors for Network Operator, Network State, and Network Code.
 - **Send SMS**: A dedicated service (`gammu_gateway.send_sms`) to send text messages from HA.
-- **Receive SMS**: Polls the gateway for new messages and fires a Home Assistant event (`gammu_gateway_sms_received`).
+- **Receive SMS**: Polls the gateway for new messages, stores them, and fires a Home Assistant event (`gammu_gateway_sms_received`).
+- **Message history**: A persisted list of received/sent messages, exposed via the `SMS Messages` sensor and manageable with the `clear_messages` / `delete_message` services.
+- **Lovelace cards**: Two ready-to-use dashboard cards — a **Send SMS** form and a **SMS Messages** list — auto-registered, no manual resource setup.
 - **Modem Control**: A dedicated button entity to **Reset** the modem remotely.
 - **Configurable Intervals**: Set independent update intervals for Signal/Network data and SMS checking.
-- **UI Configuration**: Fully managed via Config Flow (Settings -> Devices & Services).
+- **UI Configuration**: Fully managed via Config Flow (Settings -> Devices & Services), including a **re-authentication** flow when credentials change.
+
+## 🖥 Lovelace cards
+The integration ships two dependency-free custom cards that are registered
+automatically (no need to add a Lovelace resource manually).
+
+**Send SMS** — add a card of type `gammu-send-card`:
+
+```yaml
+type: custom:gammu-send-card
+title: Send SMS          # optional
+default_number: "+1555…" # optional
+```
+
+**Messages list** — add a card of type `gammu-messages-card`, pointing it at the
+`SMS Messages` sensor created by the integration:
+
+```yaml
+type: custom:gammu-messages-card
+entity: sensor.sms_messages   # adjust to your actual entity id
+title: SMS Messages                          # optional
+```
+
+Both cards are also available from the dashboard **"Add card"** picker
+(search for "Gammu"). If a card doesn't appear right after installing/updating,
+hard-refresh the browser to clear the cached JavaScript.
+
+## 🧰 Services
+| Service | Description |
+| --- | --- |
+| `gammu_gateway.send_sms` | Send an SMS. Fields: `number`, `message`, optional `smsc`. |
+| `gammu_gateway.clear_messages` | Remove all messages from the stored history. |
+| `gammu_gateway.delete_message` | Remove a single message by `message_id` (from the sensor attributes). |
 
 ## 🖼 Screenshots
 <img src="assets/images/preview_service.png" width="300" alt="Preview of the device in Home Assistant">
@@ -83,6 +117,25 @@ action:
       title: "New SMS from {{ trigger.event.data.sender }}"
       message: "{{ trigger.event.data.text }}"
 ```
+
+## 🩺 Troubleshooting
+
+### `GET /getsms … 401` in the gateway logs
+The gateway leaves `/signal`, `/network` and `/reset` **unauthenticated**, but
+`/sms` and `/getsms` **require** HTTP Basic auth. Because the sensors only use
+the unauthenticated endpoints, a wrong username/password used to be accepted
+silently and only surfaced as a `401` on every `/getsms` poll.
+
+This fork now:
+1. Validates the credentials against the authenticated `/sms` endpoint during
+   setup, so a bad username/password fails immediately with *"Invalid username
+   or password"* instead of being accepted.
+2. Triggers a **re-authentication** prompt (Settings → Devices & Services) if
+   the gateway starts rejecting the stored credentials.
+
+If you still see `401`, open the integration and re-enter the username/password
+so they match the `username`/`password` configured in the SMS Gammu Gateway
+add-on/server.
 
 ## 🤝 Contributing
 We welcome contributions! Feel free to open issues, suggest features, or submit pull requests.

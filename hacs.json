@@ -1,10 +1,10 @@
 {
     "domain": "gammu_gateway",
     "name": "SMS Gammu Gateway",
-    "version": "1.0.0",
-    "documentation": "https://github.com/array81/gammu-gateway",
+    "version": "1.1.0",
+    "documentation": "https://github.com/mdevils/ha-gammu-gateway",
     "codeowners": [
-        "@array81"
+        "@mdevils"
     ],
     "iot_class": "local_polling"
 }

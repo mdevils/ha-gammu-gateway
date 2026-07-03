@@ -1,0 +1,64 @@
+send_sms:
+  name: Send SMS
+  description: Send an SMS message through the Gammu gateway.
+  fields:
+    number:
+      name: Number
+      description: Recipient phone number (comma-separate for multiple recipients).
+      required: true
+      example: "+15551234567"
+      selector:
+        text:
+    message:
+      name: Message
+      description: Text of the message to send.
+      required: true
+      example: "Hello from Home Assistant"
+      selector:
+        text:
+          multiline: true
+    smsc:
+      name: SMSC
+      description: Optional SMS center number. Leave empty to use the SIM default.
+      required: false
+      selector:
+        text:
+    entry_id:
+      name: Gateway
+      description: Config entry id of the gateway to use (only needed with multiple gateways).
+      required: false
+      selector:
+        config_entry:
+          integration: gammu_gateway
+
+clear_messages:
+  name: Clear messages
+  description: Remove every message from the stored SMS history in Home Assistant.
+  fields:
+    entry_id:
+      name: Gateway
+      description: Config entry id of the gateway to use (only needed with multiple gateways).
+      required: false
+      selector:
+        config_entry:
+          integration: gammu_gateway
+
+delete_message:
+  name: Delete message
+  description: Remove a single message from the stored SMS history in Home Assistant.
+  fields:
+    message_id:
+      name: Message id
+      description: The id of the message to remove (from the SMS Messages sensor attributes).
+      required: true
+      selector:
+        number:
+          mode: box
+          min: 1
+    entry_id:
+      name: Gateway
+      description: Config entry id of the gateway to use (only needed with multiple gateways).
+      required: false
+      selector:
+        config_entry:
+          integration: gammu_gateway

@@ -1,29 +1,46 @@
-"""Piattaforma Sensori per Gammu Gateway."""
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+"""Sensor platform for the SMS Gammu Gateway integration."""
+from __future__ import annotations
 
-from .const import DOMAIN, CONF_HOST
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import CONF_HOST, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DATA_ENTRIES, DOMAIN, MAX_SENSOR_MESSAGES
+from .coordinator import GammuGatewayCoordinator
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Configura i sensori."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    """Set up the sensors."""
+    coordinator: GammuGatewayCoordinator = hass.data[DOMAIN][DATA_ENTRIES][
+        entry.entry_id
+    ]
     host = entry.data[CONF_HOST]
 
-    # Definiamo i sensori da creare
-    sensors = [
-        GammuSignalSensor(coordinator, entry.entry_id, host),
-        GammuNetworkSensor(coordinator, entry.entry_id, host, "NetworkName", "Operator", "mdi:radio-tower"),
-        GammuNetworkSensor(coordinator, entry.entry_id, host, "State", "Network State", "mdi:signal-variant"),
-        GammuNetworkSensor(coordinator, entry.entry_id, host, "NetworkCode", "Network Code", "mdi:numeric"),
-    ]
-    
-    async_add_entities(sensors, True)
+    async_add_entities(
+        [
+            GammuSignalSensor(coordinator, entry.entry_id, host),
+            GammuNetworkSensor(
+                coordinator, entry.entry_id, host, "NetworkName", "Operator", "mdi:radio-tower"
+            ),
+            GammuNetworkSensor(
+                coordinator, entry.entry_id, host, "State", "Network State", "mdi:signal-variant"
+            ),
+            GammuNetworkSensor(
+                coordinator, entry.entry_id, host, "NetworkCode", "Network Code", "mdi:numeric"
+            ),
+            GammuMessagesSensor(coordinator, entry.entry_id, host),
+        ]
+    )
 
 
 class GammuBaseEntity(CoordinatorEntity):
-    """Classe base per definire le informazioni del dispositivo."""
-    
+    """Base class that groups the entities under a single device."""
+
     def __init__(self, coordinator, entry_id, host):
         super().__init__(coordinator)
         self._entry_id = entry_id
@@ -31,18 +48,17 @@ class GammuBaseEntity(CoordinatorEntity):
 
     @property
     def device_info(self):
-        """Informazioni per raggruppare i sensori sotto un unico dispositivo."""
         return {
             "identifiers": {(DOMAIN, self._entry_id)},
             "name": f"Gammu Gateway ({self._host})",
             "manufacturer": "Gammu",
             "model": "SMS Gateway",
-            "configuration_url": f"http://{self._host}:5000", 
+            "configuration_url": f"http://{self._host}:5000",
         }
 
 
 class GammuSignalSensor(GammuBaseEntity, SensorEntity):
-    """Sensore intensità segnale."""
+    """Signal strength sensor."""
 
     def __init__(self, coordinator, entry_id, host):
         super().__init__(coordinator, entry_id, host)
@@ -54,15 +70,11 @@ class GammuSignalSensor(GammuBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Legge il valore dal JSON 'signal'."""
-        # Recupera il dizionario 'signal' dal coordinatore
-        signal_data = self.coordinator.data.get("signal", {})
-        # Chiave tipica Gammu: 'SignalStrength'
-        return signal_data.get("SignalStrength")
+        return self.coordinator.data.get("signal", {}).get("SignalStrength")
 
 
 class GammuNetworkSensor(GammuBaseEntity, SensorEntity):
-    """Sensore generico per i dati di rete (Operatore, Stato, ecc)."""
+    """Generic network info sensor (operator, state, code)."""
 
     def __init__(self, coordinator, entry_id, host, json_key, name_suffix, icon):
         super().__init__(coordinator, entry_id, host)
@@ -73,6 +85,42 @@ class GammuNetworkSensor(GammuBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Legge il valore dal JSON 'network'."""
-        network_data = self.coordinator.data.get("network", {})
-        return network_data.get(self._json_key)
+        return self.coordinator.data.get("network", {}).get(self._json_key)
+
+
+class GammuMessagesSensor(GammuBaseEntity, SensorEntity):
+    """Exposes the stored SMS history for the Lovelace card / templates."""
+
+    def __init__(self, coordinator, entry_id, host):
+        super().__init__(coordinator, entry_id, host)
+        self._attr_name = "SMS Messages"
+        self._attr_unique_id = f"{entry_id}_messages"
+        self._attr_icon = "mdi:message-text"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to message-store change notifications."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                self.coordinator.signal_updated_topic,
+                self.async_write_ha_state,
+            )
+        )
+
+    @property
+    def native_value(self):
+        """Number of messages currently stored."""
+        return len(self.coordinator.store.messages)
+
+    @property
+    def extra_state_attributes(self):
+        messages = self.coordinator.store.messages
+        latest = messages[0] if messages else None
+        return {
+            "messages": messages[:MAX_SENSOR_MESSAGES],
+            "last_message": latest.get("text") if latest else None,
+            "last_sender": latest.get("number") if latest else None,
+            "last_direction": latest.get("direction") if latest else None,
+        }

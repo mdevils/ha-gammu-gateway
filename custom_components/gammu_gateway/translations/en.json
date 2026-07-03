@@ -11,16 +11,77 @@
           "scan_interval_signal": "Signal Scan Interval (seconds)",
           "scan_interval_sms": "SMS Check Interval (min 10s)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate SMS Gammu Gateway",
+        "description": "The gateway at {host} rejected the stored credentials. Enter the current username and password.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
       }
     },
     "error": {
-      "cannot_connect": "Unable to connect. Check IP, Port and credentials."
+      "cannot_connect": "Unable to connect. Check IP and Port.",
+      "invalid_auth": "Invalid username or password."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured.",
+      "reauth_successful": "Re-authentication was successful."
     }
   },
   "entity": {
     "button": {
       "reset_modem": {
         "name": "Reset Modem"
+      }
+    }
+  },
+  "services": {
+    "send_sms": {
+      "name": "Send SMS",
+      "description": "Send an SMS message through the Gammu gateway.",
+      "fields": {
+        "number": {
+          "name": "Number",
+          "description": "Recipient phone number (comma-separate for multiple recipients)."
+        },
+        "message": {
+          "name": "Message",
+          "description": "Text of the message to send."
+        },
+        "smsc": {
+          "name": "SMSC",
+          "description": "Optional SMS center number. Leave empty to use the SIM default."
+        },
+        "entry_id": {
+          "name": "Gateway",
+          "description": "Gateway to use (only needed with multiple gateways)."
+        }
+      }
+    },
+    "clear_messages": {
+      "name": "Clear messages",
+      "description": "Remove every message from the stored SMS history in Home Assistant.",
+      "fields": {
+        "entry_id": {
+          "name": "Gateway",
+          "description": "Gateway to use (only needed with multiple gateways)."
+        }
+      }
+    },
+    "delete_message": {
+      "name": "Delete message",
+      "description": "Remove a single message from the stored SMS history in Home Assistant.",
+      "fields": {
+        "message_id": {
+          "name": "Message id",
+          "description": "The id of the message to remove (from the SMS Messages sensor attributes)."
+        },
+        "entry_id": {
+          "name": "Gateway",
+          "description": "Gateway to use (only needed with multiple gateways)."
+        }
       }
     }
   }

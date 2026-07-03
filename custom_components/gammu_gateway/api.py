@@ -1,12 +1,28 @@
-"""API Client per SMS Gammu Gateway."""
+"""API client for the SMS Gammu Gateway REST server."""
 import logging
+
 import aiohttp
 import async_timeout
 
+from .const import API_TIMEOUT
+
 _LOGGER = logging.getLogger(__name__)
 
+
+class GammuGatewayError(Exception):
+    """Base error for the Gammu gateway client."""
+
+
+class GammuGatewayAuthError(GammuGatewayError):
+    """Raised when the gateway rejects the credentials (HTTP 401)."""
+
+
+class GammuGatewayConnectionError(GammuGatewayError):
+    """Raised when the gateway cannot be reached or returns an error."""
+
+
 class GammuGatewayApiClient:
-    """Client API per comunicare con il gateway."""
+    """Client used to talk to the Gammu gateway REST API."""
 
     def __init__(self, host, port, username, password, session):
         self._host = host
@@ -17,55 +33,75 @@ class GammuGatewayApiClient:
         self._base_url = f"http://{host}:{port}"
 
     async def get_signal(self):
-        """Ottiene il livello del segnale."""
+        """Return the signal quality (unauthenticated endpoint)."""
         return await self._api_wrapper("GET", f"{self._base_url}/signal")
 
     async def get_network(self):
-        """Ottiene le informazioni sulla rete."""
+        """Return the network information (unauthenticated endpoint)."""
         return await self._api_wrapper("GET", f"{self._base_url}/network")
 
+    async def get_sms_list(self):
+        """Return every SMS currently stored on the modem (authenticated)."""
+        result = await self._api_wrapper("GET", f"{self._base_url}/sms")
+        return result if isinstance(result, list) else []
+
     async def get_last_sms(self):
-        """Ottiene l'ultimo SMS ricevuto e lo rimuove dalla coda del gateway."""
-        # Endpoint indicato da te per la lettura (e cancellazione) dell'ultimo SMS
+        """Return the oldest stored SMS and remove it from the modem (authenticated)."""
         return await self._api_wrapper("GET", f"{self._base_url}/getsms")
 
-    async def send_sms(self, number, message):
-        """Invia un SMS."""
+    async def send_sms(self, number, message, smsc=None):
+        """Send an SMS (authenticated)."""
         payload = {"number": number, "text": message}
+        if smsc:
+            payload["smsc"] = smsc
         return await self._api_wrapper("POST", f"{self._base_url}/sms", json_data=payload)
 
     async def reset_modem(self):
-        """Invia il comando di reset al modem."""
+        """Send the reset command to the modem (unauthenticated endpoint)."""
         return await self._api_wrapper("GET", f"{self._base_url}/reset")
 
+    async def async_validate_auth(self):
+        """Validate host reachability *and* credentials.
+
+        Calls the authenticated ``/sms`` endpoint so that a wrong
+        username/password is detected during setup instead of silently
+        failing later on ``/getsms``.
+        """
+        await self.get_sms_list()
+
     async def _api_wrapper(self, method, url, json_data=None):
-        """Esegue la chiamata HTTP gestendo l'autenticazione Basic."""
+        """Perform the HTTP call, handling Basic authentication and errors."""
         auth = aiohttp.BasicAuth(self._username, self._password)
-        
+
         try:
-            async with async_timeout.timeout(10):
+            async with async_timeout.timeout(API_TIMEOUT):
                 if method == "GET":
                     response = await self._session.get(url, auth=auth)
                 else:
                     response = await self._session.post(url, auth=auth, json=json_data)
-                
+
                 if response.status == 401:
-                    raise Exception("Errore di autenticazione: Username o Password errati")
-                
-                # Per il reset o getsms potremmo ricevere risposte diverse, ma 200 è lo standard
+                    raise GammuGatewayAuthError(
+                        "Authentication failed: wrong username or password"
+                    )
+
                 if response.status != 200:
                     text = await response.text()
-                    raise Exception(f"Errore API ({response.status}): {text}")
+                    raise GammuGatewayConnectionError(
+                        f"Gateway returned HTTP {response.status}: {text}"
+                    )
 
                 try:
                     return await response.json()
-                except:
-                    # Se la risposta non è JSON (es. un OK testuale), torniamo un dizionario vuoto o lo stato
+                except (aiohttp.ContentTypeError, ValueError):
+                    # Non-JSON payload (e.g. a textual OK): return the raw body.
                     return {"status": "ok", "raw": await response.text()}
 
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Errore di connessione al Gammu Gateway: %s", err)
-            raise Exception(f"Errore di connessione: {err}")
-        except Exception as err:
-            _LOGGER.error("Errore generico API: %s", err)
+        except GammuGatewayError:
             raise
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Connection error talking to the Gammu gateway: %s", err)
+            raise GammuGatewayConnectionError(f"Connection error: {err}") from err
+        except TimeoutError as err:
+            _LOGGER.error("Timeout talking to the Gammu gateway: %s", err)
+            raise GammuGatewayConnectionError("Timeout talking to the gateway") from err
